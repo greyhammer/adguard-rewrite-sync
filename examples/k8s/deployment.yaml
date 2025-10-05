@@ -1,0 +1,204 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: adguard-sync
+  namespace: adguard-rewrite-sync
+  labels:
+    app.kubernetes.io/name: adguard-rewrite-sync
+    app.kubernetes.io/component: dns-sync
+    app.kubernetes.io/part-of: infrastructure
+    app.kubernetes.io/version: "1.0.1"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: adguard-rewrite-sync
+      app.kubernetes.io/component: dns-sync
+      app.kubernetes.io/version: "1.0.1"
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: adguard-rewrite-sync
+        app.kubernetes.io/component: dns-sync
+        app.kubernetes.io/part-of: infrastructure
+        app.kubernetes.io/version: "1.0.1"
+      annotations:
+        diun.enable: "true"
+    spec:
+      serviceAccountName: adguard-rewrite-sync
+      imagePullSecrets:
+      - name: gitlab-registry-secret
+      initContainers:
+      - name: fix-permissions
+        image: busybox:1.35
+        command: ['sh', '-c', 'chown -R 1000:1000 /app/data && chmod -R 755 /app/data']
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+        securityContext:
+          runAsUser: 0
+      containers:
+      - name: adguard-sync
+        image: your-registry/adguard-rewrite-sync:1.0.1
+        imagePullPolicy: Always
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+        env:
+        # AdGuardHome connection
+        - name: ADGUARD_URL
+          valueFrom:
+            configMapKeyRef:
+              name: adguard-sync-config
+              key: ADGUARD_URL
+        - name: ADGUARD_USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: adguard-sync-config
+              key: ADGUARD_USERNAME
+        - name: ADGUARD_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: adguard-sync-secret
+              key: ADGUARD_PASSWORD
+        
+        # Sync configuration
+        - name: SYNC_INTERVAL
+          valueFrom:
+            configMapKeyRef:
+              name: adguard-sync-config
+              key: SYNC_INTERVAL
+        
+        # Logging configuration
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: adguard-sync-config
+              key: LOG_LEVEL
+        - name: JSON_LOGGING
+          valueFrom:
+            configMapKeyRef:
+              name: adguard-sync-config
+              key: JSON_LOGGING
+        
+        # AdGuardHome API configuration
+        - name: ADGUARD_MAX_RETRIES
+          valueFrom:
+            configMapKeyRef:
+              name: adguard-sync-config
+              key: ADGUARD_MAX_RETRIES
+        - name: ADGUARD_RETRY_DELAY
+          valueFrom:
+            configMapKeyRef:
+              name: adguard-sync-config
+              key: ADGUARD_RETRY_DELAY
+        - name: ADGUARD_REQUEST_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: adguard-sync-config
+              key: ADGUARD_REQUEST_TIMEOUT
+        - name: ADGUARD_SAFETY_THRESHOLD
+          valueFrom:
+            configMapKeyRef:
+              name: adguard-sync-config
+              key: ADGUARD_SAFETY_THRESHOLD
+        
+        # Application configuration
+        - name: APP_CHANGE_WAIT_TIME
+          valueFrom:
+            configMapKeyRef:
+              name: adguard-sync-config
+              key: APP_CHANGE_WAIT_TIME
+        - name: APP_MAIN_LOOP_SLEEP
+          valueFrom:
+            configMapKeyRef:
+              name: adguard-sync-config
+              key: APP_MAIN_LOOP_SLEEP
+        - name: APP_THREAD_JOIN_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: adguard-sync-config
+              key: APP_THREAD_JOIN_TIMEOUT
+        - name: APP_HEALTH_SERVER_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: adguard-sync-config
+              key: APP_HEALTH_SERVER_PORT
+        
+        # Database configuration
+        - name: DB_MAX_BACKUPS
+          valueFrom:
+            configMapKeyRef:
+              name: adguard-sync-config
+              key: DB_MAX_BACKUPS
+        - name: DB_LOCK_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: adguard-sync-config
+              key: DB_LOCK_TIMEOUT
+        - name: DB_DEBUG_LOG_CHARS
+          valueFrom:
+            configMapKeyRef:
+              name: adguard-sync-config
+              key: DB_DEBUG_LOG_CHARS
+        
+        # Health checker configuration
+        - name: HEALTH_CACHE_DURATION
+          valueFrom:
+            configMapKeyRef:
+              name: adguard-sync-config
+              key: HEALTH_CACHE_DURATION
+        - name: HEALTH_MAX_CONSECUTIVE_FAILURES
+          valueFrom:
+            configMapKeyRef:
+              name: adguard-sync-config
+              key: HEALTH_MAX_CONSECUTIVE_FAILURES
+        - name: HEALTH_CHECK_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: adguard-sync-config
+              key: HEALTH_CHECK_TIMEOUT
+        
+        # Kubernetes client configuration
+        - name: K8S_WATCH_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: adguard-sync-config
+              key: K8S_WATCH_TIMEOUT
+        
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+        
+        # Improved health checks
+        livenessProbe:
+          exec:
+            command:
+            - python3
+            - -c
+            - "import requests; requests.get('http://localhost:8080/health', timeout=10)"
+          initialDelaySeconds: 60
+          periodSeconds: 60
+          timeoutSeconds: 30
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - python3
+            - -c
+            - "import requests; requests.get('http://localhost:8080/health', timeout=15)"
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 20
+          failureThreshold: 3
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: adguard-sync-data

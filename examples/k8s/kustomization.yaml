@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: adguard-rewrite-sync
+
+namespace: adguard-rewrite-sync
+
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - configmap.yaml
+  - secret.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+
+commonLabels:
+  app.kubernetes.io/name: adguard-rewrite-sync
+  app.kubernetes.io/component: dns-sync
+  app.kubernetes.io/part-of: infrastructure
+
+commonAnnotations:
+  diun.enable: "true"

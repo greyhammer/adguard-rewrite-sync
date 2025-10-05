@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  adguard-rewrite-sync:
+    build: .
+    container_name: adguard-rewrite-sync
+    environment:
+      - ADGUARD_URL=http://adguard:3000
+      - ADGUARD_USERNAME=admin
+      - ADGUARD_PASSWORD=${ADGUARD_PASSWORD}
+      - ADGUARD_MAX_RETRIES=3
+      - ADGUARD_RETRY_DELAY=2
+      - ADGUARD_REQUEST_TIMEOUT=10
+      - ADGUARD_SAFETY_THRESHOLD=0.8
+      - SYNC_INTERVAL=30
+      - APP_CHANGE_WAIT_TIME=5
+      - APP_MAIN_LOOP_SLEEP=1
+      - APP_THREAD_JOIN_TIMEOUT=5
+      - APP_HEALTH_SERVER_PORT=8080
+      - DB_MAX_BACKUPS=5
+      - DB_LOCK_TIMEOUT=30.0
+      - DB_DEBUG_LOG_CHARS=500
+      - HEALTH_CACHE_DURATION=30
+      - HEALTH_MAX_CONSECUTIVE_FAILURES=3
+      - HEALTH_CHECK_TIMEOUT=10
+      - K8S_WATCH_TIMEOUT=0
+      - LOG_LEVEL=INFO
+    volumes:
+      - ~/.kube/config:/root/.kube/config:ro
+    networks:
+      - default
+    depends_on:
+      - adguard
+    restart: unless-stopped
+
+  adguard:
+    image: adguard/adguardhome:latest
+    container_name: adguard
+    ports:
+      - "3000:3000/tcp"
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "67:67/udp"
+      - "68:68/tcp"
+      - "68:68/udp"
+      - "80:80/tcp"
+      - "443:443/tcp"
+      - "853:853/tcp"
+    volumes:
+      - ./adguard/workdir:/opt/adguardhome/work
+      - ./adguard/confdir:/opt/adguardhome/conf
+    networks:
+      - default
+    restart: unless-stopped
+
+networks:
+  default:
+    driver: bridge
